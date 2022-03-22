@@ -1,40 +1,39 @@
-node{
-     
-    stage('SCM Checkout'){
-        git url: 'https://github.com/MithunTechnologiesDevOps/java-web-app-docker.git',branch: 'master'
-    }
+node {
     
-    stage(" Maven Clean Package"){
-      def mavenHome =  tool name: "Maven-3.5.6", type: "maven"
-      def mavenCMD = "${mavenHome}/bin/mvn"
-      sh "${mavenCMD} clean package"
-      
-    } 
-    
-    
-    stage('Build Docker Image'){
-        sh 'docker build -t dockerhandson/java-web-app .'
-    }
-    
-    stage('Push Docker Image'){
-        withCredentials([string(credentialsId: 'Docker_Hub_Pwd', variable: 'Docker_Hub_Pwd')]) {
-          sh "docker login -u dockerhandson -p ${Docker_Hub_Pwd}"
-        }
-        sh 'docker push dockerhandson/java-web-app'
-     }
-     
-      stage('Run Docker Image In Dev Server'){
+	def buildNumber = BUILD_NUMBER
+    stage("Git Clone"){
         
-        def dockerRun = ' docker run  -d -p 8080:8080 --name java-web-app dockerhandson/java-web-app'
-         
-         sshagent(['DOCKER_SERVER']) {
-          sh 'ssh -o StrictHostKeyChecking=no ubuntu@172.31.20.72 docker stop java-web-app || true'
-          sh 'ssh  ubuntu@172.31.20.72 docker rm java-web-app || true'
-          sh 'ssh  ubuntu@172.31.20.72 docker rmi -f  $(docker images -q) || true'
-          sh "ssh  ubuntu@172.31.20.72 ${dockerRun}"
-       }
-       
+        git url: 'https://github.com/nvvr53/java-web-app-docker.git', branch: 'master'
     }
-     
-     
+    
+    stage("Maven Clean Package"){
+        
+        def mavenHome= tool name: "Maven",type: "maven"
+         sh "${mavenHome}/bin/mvn clean package"
+    }
+    
+    stage("Build Docker Image"){
+        
+        sh "docker build -t dockernvvr/java-web-docker:${buildNumber} ."
+    }
+    
+    stage("Docker Login And Pushing Image"){
+        withCredentials([string(credentialsId: 'DockerPassword', variable: 'DockerPassword')]){
+            sh "docker login -u dockernvvr -p ${DockerPassword}"
+        }
+        
+            sh "docker push dockernvvr/java-web-docker "
+    }
+    stage("Deploy Application as Docker Container in DeploymentServer"){
+        
+     sshagent(['Deploy_Server']) {
+          
+          sh "ssh -o StrictHostKeyChecking=no ubuntu@172.31.43.201 docker rm -f javawebappcontainer || true"
+          
+          sh "ssh -o StrictHostKeyChecking=no ubuntu@172.31.43.201 docker run -d -p 8080:8080 --name javawebappcontainer dockernvvr/java-web-docker"
+      }
+        
+    }
+    
+
 }
